@@ -1,0 +1,5 @@
+status: success
+commit: 46521d06ee298b10ed58a77683fb61046b75bde1
+run: https://github.com/kingOFLols/coreone-firmware/actions/runs/44545758476
+finished: 2026-11-19T14:45:16Z
+582e78fb541a7dc46ac77d14157f51cc9d24290612e4f8126f92b7d8579fa032  coreone_8.0.2_L-limits.bbf
