@@ -1,0 +1,69 @@
+name: Build CORE One firmware (CORE One L limits)
+
+# Builds Prusa CORE One firmware with the CORE One L's chamber limits on a
+# GitHub-hosted Ubuntu 24.04 machine (the same OS as Prusa's own build container).
+# The finished .bbf is attached to the run as an artifact and is also published,
+# together with the full build log, on the "build-output" branch.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - build_coreone_L_limits.py
+      - .github/workflows/build-coreone-firmware.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write # lets the last step publish the result on the build-output branch
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Check out the build script
+        uses: actions/checkout@v6
+
+      - name: Build the firmware
+        run: |
+          set -o pipefail
+          python3 -u build_coreone_L_limits.py 2>&1 | tee build.log
+
+      - name: Attach the firmware to this run
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coreone-L-limits-firmware
+          path: |
+            coreone_*_L-limits.bbf
+            coreone_L_limits.diff
+          if-no-files-found: error
+
+      - name: Publish the result on the build-output branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -e
+          out="$RUNNER_TEMP/build-output"
+          rm -rf "$out"
+          mkdir -p "$out"
+          cp build.log "$out/" 2>/dev/null || true
+          cp coreone_*_L-limits.bbf coreone_L_limits.diff "$out/" 2>/dev/null || true
+          {
+            echo "status: $JOB_STATUS"
+            echo "commit: $GITHUB_SHA"
+            echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "finished: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            (cd "$out" && sha256sum *.bbf 2>/dev/null) || true
+          } > "$out/status.txt"
+          cd "$out"
+          git init -q -b build-output
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Build output for ${GITHUB_SHA::7}: $JOB_STATUS"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" build-output
