@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-Build Prusa CORE One firmware 8.0.2 with the CORE One L's chamber limits.
+Build Prusa CORE One firmware with the CORE One L's chamber limits.
 
-Run it in Linux. On Windows, run it inside WSL (Ubuntu 24.04):
+Run it in Linux (Ubuntu 24.04 is what Prusa's own build container uses):
 
-    python3 build_coreone_L_limits.py
+    python3 build_coreone_L_limits.py                    # newest final release it knows
+    python3 build_coreone_L_limits.py --tag v8.0.3-beta  # a specific release
 
 What it does
   1. installs the packages Prusa's own build container uses (asks for your password)
-  2. downloads the firmware source, tag v8.0.2, into ~/coreone-fw
+  2. downloads the firmware source for that release into ~/coreone-fw
   3. changes the CORE One's limits to the CORE One L's values and checks every change
   4. builds the firmware with Prusa's build script (downloads the compilers on the first run)
   5. copies the finished .bbf next to this script
 
 Options
+  --tag TAG      which release to build (see RELEASES below)
   --patch-only   stop after step 3 (patch and verify, no build)
-  --src DIR      use an existing v8.0.2 checkout instead of ~/coreone-fw/Prusa-Firmware-Buddy
+  --src DIR      use an existing checkout of that release instead of downloading one
   --undo         put the three patched files back to stock and stop
 
 Applies to the CORE One, CORE One+ and CORE One+ (Gen 2) without INDX (build preset "coreone").
@@ -28,20 +30,43 @@ import subprocess
 import sys
 from pathlib import Path
 
-TAG = "v8.0.2"
-TAG_COMMIT = "b1043d68be188ad27ea72a14e160140e30e589f0"
-# Number of commits up to the tag in Prusa's public repo. Official builds use this as the build
-# number, and the printer compares it with the "M115 U8.0.2+NNNNN" line in sliced G-code.
-# The source is downloaded with its full commit list so the build counts the same number itself;
-# it is also passed to the main build explicitly and checked against the download.
-BUILD_NUMBER = "17092"
+# Releases this script knows. For each tag: the commit it must point to, the number of commits
+# up to it in Prusa's public repo, and the pre-release label Prusa's own build of it carries.
+# Official builds use the commit count as the build number, and the printer compares it with the
+# "M115 U<version>+NNNNN" line in sliced G-code. The source is downloaded with its full commit
+# list so the build counts the same number itself; it is also passed to the main build explicitly.
+RELEASES = {
+    "v8.0.2": ("b1043d68be188ad27ea72a14e160140e30e589f0", "17092", ""),
+    "v8.0.3-beta": ("5f11b2176510624c9c190c8e46bee048e5218533", "17094", "-BETA"),
+}
+DEFAULT_TAG = "v8.0.2"  # newest final release
 REPO = "https://github.com/prusa3d/Prusa-Firmware-Buddy.git"
 PRESET = "coreone"
-# Settings Prusa's own release builds use (utils/holly/build-pr.jenkins). Without the last one a
-# local build is a developer build: green developer menus, and metrics reporting switched on by default.
-BUILD_ARGS = ["--preset", PRESET, "--bootloader", "yes", "--build-type", "release",
-              "--cmake-def", "BUILD_NUMBER:STRING=" + BUILD_NUMBER,
-              "--cmake-def", "DEVELOPMENT_ITEMS_ENABLED:BOOL=NO"]
+TAG = TAG_COMMIT = BUILD_NUMBER = PRERELEASE = None  # set by select_release()
+BUILD_ARGS = []
+
+
+def select_release(tag):
+    """Point the script at one of the known releases."""
+    global TAG, TAG_COMMIT, BUILD_NUMBER, PRERELEASE, BUILD_ARGS
+    TAG = tag
+    TAG_COMMIT, BUILD_NUMBER, PRERELEASE = RELEASES[tag]
+    # Settings Prusa's own release builds use (utils/holly/build-pr.jenkins). Without the
+    # DEVELOPMENT_ITEMS one a local build is a developer build: green developer menus, and
+    # metrics reporting switched on by default.
+    BUILD_ARGS = ["--preset", PRESET, "--bootloader", "yes", "--build-type", "release",
+                  "--cmake-def", "BUILD_NUMBER:STRING=" + BUILD_NUMBER,
+                  "--cmake-def", "DEVELOPMENT_ITEMS_ENABLED:BOOL=NO"]
+    if PRERELEASE:
+        # label a build of a pre-release the way Prusa labels its own (8.0.3-BETA+17094), plus .LOCAL
+        BUILD_ARGS += ["--version-suffix=%s+%s.LOCAL" % (PRERELEASE, BUILD_NUMBER),
+                       "--version-suffix-short=%s+%s" % (PRERELEASE, BUILD_NUMBER)]
+
+
+def version_label():
+    """What this build calls itself on the printer, e.g. 8.0.2+17092.LOCAL or 8.0.3-BETA+17094.LOCAL."""
+    base = re.match(r"v(\d+\.\d+\.\d+)", TAG).group(1)
+    return "%s%s+%s.LOCAL" % (base, PRERELEASE, BUILD_NUMBER)
 # Same list as utils/holly/Dockerfile (Prusa's build container, Ubuntu 24.04)
 APT_PACKAGES = ["git", "python3", "python3-pip", "python3-venv", "python3-requests", "libjpeg-dev", "libusb-1.0-0", "gettext"]
 
@@ -269,13 +294,16 @@ def windows_path(p):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Build CORE One firmware %s with the CORE One L chamber limits." % TAG)
+    ap = argparse.ArgumentParser(description="Build CORE One firmware with the CORE One L chamber limits.")
+    ap.add_argument("--tag", choices=sorted(RELEASES), default=DEFAULT_TAG,
+                    help="release to build (default: %s)" % DEFAULT_TAG)
     ap.add_argument("--patch-only", action="store_true", help="patch and verify, do not build")
     ap.add_argument("--undo", action="store_true", help="restore the stock values and stop")
-    ap.add_argument("--src", type=Path, default=Path.home() / "coreone-fw" / "Prusa-Firmware-Buddy",
-                    help="firmware source folder (default: ~/coreone-fw/Prusa-Firmware-Buddy)")
+    ap.add_argument("--src", type=Path, default=None,
+                    help="firmware source folder (default: ~/coreone-fw/Prusa-Firmware-Buddy-<tag>)")
     args = ap.parse_args()
-    src = args.src.expanduser().resolve()
+    select_release(args.tag)
+    src = (args.src or Path.home() / "coreone-fw" / ("Prusa-Firmware-Buddy-" + TAG)).expanduser().resolve()
     out_dir = Path(__file__).resolve().parent
 
     if sys.platform.startswith("win"):
@@ -326,19 +354,22 @@ def main():
         print("\nPatched. To build yourself:\n  cd %s\n  python3 utils/build.py %s" % (src, " ".join(BUILD_ARGS)))
         return
 
-    print("[4/5] Building (the first run downloads the compilers; leave it running)")
-    product = src / "build" / "products" / ("%s_release_boot.bbf" % PRESET)
-    if product.exists():
-        product.unlink()
+    print("[4/5] Building %s (the first run downloads the compilers; leave it running)" % version_label())
+    products = src / "build" / "products"
+    pattern = "%s_release_boot*.bbf" % PRESET  # a pre-release label becomes part of the file name
+    for old in products.glob(pattern):
+        old.unlink()
     env_hint = "If it stops with a download error, check the internet connection and run this script again; it resumes."
     env = dict(os.environ)
     if env.get("WSL_DISTRO_NAME") or "microsoft" in os.uname().release.lower():
         # WSL appends the Windows PATH (folders with spaces) to the Linux PATH; the build does not need it
         env["PATH"] = os.pathsep.join(p for p in env.get("PATH", "").split(os.pathsep) if p and not p.startswith("/mnt/"))
     r = subprocess.run([py, "utils/build.py"] + BUILD_ARGS, cwd=str(src), env=env)
-    if r.returncode != 0 or not product.exists():
-        die("the build did not finish (exit code %s).\n%s\nCopy the last ~30 lines above if you want help with it."
-            % (r.returncode, env_hint))
+    built = sorted(products.glob(pattern))
+    if r.returncode != 0 or len(built) != 1:
+        die("the build did not finish (exit code %s, %d firmware file(s) produced).\n%s\n"
+            "Copy the last ~30 lines above if you want help with it." % (r.returncode, len(built), env_hint))
+    product = built[0]
 
     print("[5/5] Done")
     name = "coreone_%s_L-limits.bbf" % TAG.lstrip("v")
@@ -353,8 +384,7 @@ def main():
     print("  It is unsigned, so the printer only accepts it after the appendix seal on the xBuddy board is broken.\n"
           "  Copy it to a FAT32 USB stick with no other .bbf files, press reset on the printer,\n"
           "  press the knob when the Prusa logo shows, and choose FLASH.\n"
-          "  After flashing, the start-up screen reads \"Firmware %s+%s.LOCAL\"."
-          % (TAG.lstrip("v"), BUILD_NUMBER))
+          "  After flashing, the start-up screen reads \"Firmware %s\"." % version_label())
 
 
 if __name__ == "__main__":

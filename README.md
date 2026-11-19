@@ -2,6 +2,7 @@
 
 Builds Prusa's open-source firmware ([Prusa-Firmware-Buddy](https://github.com/prusa3d/Prusa-Firmware-Buddy), GPL-3.0)
 for the CORE One, CORE One+ and CORE One+ (Gen 2) with ten chamber-limit values changed to the CORE One L's values.
+Nothing else in the source is changed.
 
 | Limit | Stock CORE One | This build (= CORE One L) |
 |---|---|---|
@@ -11,9 +12,12 @@ for the CORE One, CORE One+ and CORE One+ (Gen 2) with ten chamber-limit values 
 | Normal fan control resumes below | 55 °C | 60 °C |
 | Built-in PPS and PPA presets, chamber min / max / target | 45 / 65 / 55 °C | 55 / 70 / 60 °C |
 
-- `build_coreone_L_limits.py` downloads the tagged source, applies and verifies the changes, and builds.
-- `.github/workflows/build-coreone-firmware.yml` runs it on GitHub Actions (Ubuntu 24.04).
-- The finished `.bbf`, the exact source changes and the build log land on the `build-output` branch
-  and under **Artifacts** on the Actions run.
+- `build_coreone_L_limits.py` downloads the tagged source, applies and verifies the changes, and builds
+  with Prusa's release settings. It knows the releases listed in its `RELEASES` table (`--tag`).
+- `.github/workflows/build-coreone-firmware.yml` runs it on GitHub Actions (Ubuntu 24.04). To build another
+  release, open the Actions tab, choose the workflow, press **Run workflow** and pick the version.
+- The finished `.bbf`, the exact source changes and the build log land on the
+  [`build-output`](../../tree/build-output) branch, one folder per firmware version, and under
+  **Artifacts** on the Actions run.
 
 The firmware is unsigned: the printer only accepts it after the appendix seal on the xBuddy board is broken.
