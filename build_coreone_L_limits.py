@@ -32,10 +32,16 @@ TAG = "v8.0.2"
 TAG_COMMIT = "b1043d68be188ad27ea72a14e160140e30e589f0"
 # Number of commits up to the tag in Prusa's public repo. Official builds use this as the build
 # number, and the printer compares it with the "M115 U8.0.2+NNNNN" line in sliced G-code.
-# A shallow clone can't count commits, so it is passed to the build explicitly.
+# The source is downloaded with its full commit list so the build counts the same number itself;
+# it is also passed to the main build explicitly and checked against the download.
 BUILD_NUMBER = "17092"
 REPO = "https://github.com/prusa3d/Prusa-Firmware-Buddy.git"
 PRESET = "coreone"
+# Settings Prusa's own release builds use (utils/holly/build-pr.jenkins). Without the last one a
+# local build is a developer build: green developer menus, and metrics reporting switched on by default.
+BUILD_ARGS = ["--preset", PRESET, "--bootloader", "yes", "--build-type", "release",
+              "--cmake-def", "BUILD_NUMBER:STRING=" + BUILD_NUMBER,
+              "--cmake-def", "DEVELOPMENT_ITEMS_ENABLED:BOOL=NO"]
 # Same list as utils/holly/Dockerfile (Prusa's build container, Ubuntu 24.04)
 APT_PACKAGES = ["git", "python3", "python3-pip", "python3-venv", "python3-requests", "libjpeg-dev", "libusb-1.0-0", "gettext"]
 
@@ -237,7 +243,10 @@ def build_python():
 def get_source(src):
     if not src.exists():
         src.parent.mkdir(parents=True, exist_ok=True)
-        run(["git", "-c", "advice.detachedHead=false", "clone", "--depth", "1", "--branch", TAG, REPO, src])
+        # --filter=tree:0 downloads the full list of commits (needed for the build number) but only
+        # the files of this one version, so it stays about as small as a shallow clone
+        run(["git", "-c", "advice.detachedHead=false", "clone", "--filter=tree:0", "--single-branch",
+             "--branch", TAG, REPO, src])
     if not (src / "utils" / "build.py").exists():
         die("%s is not a Prusa-Firmware-Buddy checkout." % src)
     head = run(["git", "rev-parse", "HEAD"], cwd=src, capture=True).stdout.strip()
@@ -245,6 +254,13 @@ def get_source(src):
         die("%s is at commit %s, not at %s (%s).\nDelete that folder (or pass --src to a %s checkout) and run again."
             % (src, head[:12], TAG, TAG_COMMIT[:12], TAG))
     print("  source: %s at %s" % (src, TAG))
+    count = run(["git", "rev-list", "--count", "HEAD"], cwd=src, capture=True).stdout.strip()
+    if count == BUILD_NUMBER:
+        print("  commit count: %s (the build number official %s builds carry)" % (count, TAG))
+    else:
+        print("  NOTE: this checkout counts %s commits, not %s (a shallow clone?). The main firmware still gets\n"
+              "  build number %s, but the two secondary board firmwares will be labelled +%s. To avoid that,\n"
+              "  delete %s and run again." % (count, BUILD_NUMBER, BUILD_NUMBER, count, src))
 
 
 def windows_path(p):
@@ -307,8 +323,7 @@ def main():
     except OSError:
         pass
     if args.patch_only:
-        print("\nPatched. To build yourself:\n  cd %s\n  python3 utils/build.py --preset %s --bootloader yes "
-              "--cmake-def BUILD_NUMBER:STRING=%s" % (src, PRESET, BUILD_NUMBER))
+        print("\nPatched. To build yourself:\n  cd %s\n  python3 utils/build.py %s" % (src, " ".join(BUILD_ARGS)))
         return
 
     print("[4/5] Building (the first run downloads the compilers; leave it running)")
@@ -320,8 +335,7 @@ def main():
     if env.get("WSL_DISTRO_NAME") or "microsoft" in os.uname().release.lower():
         # WSL appends the Windows PATH (folders with spaces) to the Linux PATH; the build does not need it
         env["PATH"] = os.pathsep.join(p for p in env.get("PATH", "").split(os.pathsep) if p and not p.startswith("/mnt/"))
-    r = subprocess.run([py, "utils/build.py", "--preset", PRESET, "--bootloader", "yes", "--build-type", "release",
-                        "--cmake-def", "BUILD_NUMBER:STRING=" + BUILD_NUMBER], cwd=str(src), env=env)
+    r = subprocess.run([py, "utils/build.py"] + BUILD_ARGS, cwd=str(src), env=env)
     if r.returncode != 0 or not product.exists():
         die("the build did not finish (exit code %s).\n%s\nCopy the last ~30 lines above if you want help with it."
             % (r.returncode, env_hint))
