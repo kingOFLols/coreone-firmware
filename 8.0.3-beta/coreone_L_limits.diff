@@ -1,0 +1,64 @@
+diff --git a/src/common/filament_presets.cpp b/src/common/filament_presets.cpp
+index 31172783..f31adad8 100644
+--- a/src/common/filament_presets.cpp
++++ b/src/common/filament_presets.cpp
+@@ -216,9 +216,9 @@ constexpr PresetFilamentParametersT<PresetFilamentParameters> preset_filament_pa
+                 .nozzle_temperature = 320,
+                 .heatbed_temperature = 105,
+     #if HAS_CHAMBER_API()
+-                .chamber_min_temperature = PRINTER_IS_PRUSA_COREONEL() ? 55 : 45,
+-                .chamber_max_temperature = PRINTER_IS_PRUSA_COREONEL() ? 70 : 65,
+-                .chamber_target_temperature = PRINTER_IS_PRUSA_COREONEL() ? 60 : 55,
++                .chamber_min_temperature = PRINTER_IS_PRUSA_COREONEL() ? 55 : 55,
++                .chamber_max_temperature = PRINTER_IS_PRUSA_COREONEL() ? 70 : 70,
++                .chamber_target_temperature = PRINTER_IS_PRUSA_COREONEL() ? 60 : 60,
+     #endif
+                 .is_abrasive = true,
+                 .requires_ht_idler_door = true,
+@@ -231,9 +231,9 @@ constexpr PresetFilamentParametersT<PresetFilamentParameters> preset_filament_pa
+                 .nozzle_temperature = 320,
+                 .heatbed_temperature = 105,
+     #if HAS_CHAMBER_API()
+-                .chamber_min_temperature = PRINTER_IS_PRUSA_COREONEL() ? 55 : 45,
+-                .chamber_max_temperature = PRINTER_IS_PRUSA_COREONEL() ? 70 : 65,
+-                .chamber_target_temperature = PRINTER_IS_PRUSA_COREONEL() ? 60 : 55,
++                .chamber_min_temperature = PRINTER_IS_PRUSA_COREONEL() ? 55 : 55,
++                .chamber_max_temperature = PRINTER_IS_PRUSA_COREONEL() ? 70 : 70,
++                .chamber_target_temperature = PRINTER_IS_PRUSA_COREONEL() ? 60 : 60,
+     #endif
+                 .is_abrasive = true,
+                 .requires_ht_idler_door = true,
+diff --git a/src/feature/chamber/chamber.cpp b/src/feature/chamber/chamber.cpp
+index 028c58ad..85d20ad7 100644
+--- a/src/feature/chamber/chamber.cpp
++++ b/src/feature/chamber/chamber.cpp
+@@ -36,7 +36,7 @@
+ 
+ #if PRINTER_IS_PRUSA_COREONE()
+ namespace {
+-constexpr buddy::Temperature chamber_maxtemp = 60;
++constexpr buddy::Temperature chamber_maxtemp = 65;
+ constexpr buddy::Temperature chamber_maxtemp_safety_margin = 5;
+ } // namespace
+ #elif PRINTER_IS_PRUSA_COREONEL()
+diff --git a/src/feature/xbuddy_extension/cooling.hpp b/src/feature/xbuddy_extension/cooling.hpp
+index 12cf926f..d1df7191 100644
+--- a/src/feature/xbuddy_extension/cooling.hpp
++++ b/src/feature/xbuddy_extension/cooling.hpp
+@@ -17,13 +17,13 @@ public:
+ 
+ #if PRINTER_IS_PRUSA_COREONE()
+     /// Temperature at which the fans start spinning at full speed, no matter what
+-    static constexpr Temperature overheating_temp = 60.0f;
++    static constexpr Temperature overheating_temp = 65.0f;
+ 
+     /// Temperature at which the print is stopped and fans at full power, not matter what
+-    static constexpr Temperature critical_temp = 65.0f;
++    static constexpr Temperature critical_temp = 68.0f;
+ 
+     /// Temperature at which the normal fan control may be restored, after emergency temperature
+-    static constexpr Temperature recovery_temp = 55.0f;
++    static constexpr Temperature recovery_temp = 60.0f;
+ #elif PRINTER_IS_PRUSA_COREONEL()
+     /// Temperature at which the fans start spinning at full speed, no matter what
+     static constexpr Temperature overheating_temp = 65.0f;

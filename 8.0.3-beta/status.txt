@@ -1,0 +1,6 @@
+status: success
+firmware: v8.0.3-beta
+commit: 77f371f0fbbae7db2725ac32450336b1d8b30ed1
+run: https://github.com/kingOFLols/coreone-firmware/actions/runs/44557299054
+finished: 2026-11-19T15:46:59Z
+6515511afca3cac63e9c271aa276c2cffb68fb2bd49f5a6e582126a9c960e523  coreone_8.0.3-beta_L-limits.bbf
